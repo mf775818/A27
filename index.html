@@ -1,0 +1,1487 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>A27建築3D互動可視化</title>
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@300;400;500;700&display=swap" rel="stylesheet">
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      overflow: hidden;
+      font-family: 'Noto Sans TC', "微軟正黑體", Arial, sans-serif;
+      color: #333;
+      background-color: #f5f5f5;
+    }
+
+    #canvas {
+      width: 100%;
+      height: 100vh;
+      display: block;
+      transition: all 0.3s ease;
+    }
+
+    .panel {
+      position: absolute;
+      background: rgba(255, 255, 255, 0.95);
+      border-radius: 12px;
+      z-index: 100;
+      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
+      transition: all 0.3s ease;
+      backdrop-filter: blur(10px);
+      -webkit-backdrop-filter: blur(10px);
+    }
+
+    #controls {
+      top: 20px;
+      left: 20px;
+      padding: 20px;
+      max-width: 320px;
+      max-height: calc(100vh - 40px);
+      overflow-y: auto;
+      overflow-x: hidden;
+    }
+
+    #info-panel {
+      bottom: 20px;
+      right: 20px;
+      width: 320px;
+      padding: 20px;
+    }
+
+    .control-section {
+      margin-bottom: 20px;
+      padding-bottom: 20px;
+      border-bottom: 1px solid rgba(0, 0, 0, 0.08);
+    }
+
+    .control-section:last-child {
+      border-bottom: none;
+      margin-bottom: 0;
+      padding-bottom: 0;
+    }
+
+    h3 {
+      margin-top: 0;
+      margin-bottom: 15px;
+      color: #1a73e8;
+      font-weight: 500;
+      font-size: 16px;
+      display: flex;
+      align-items: center;
+    }
+
+    h3 svg {
+      margin-right: 8px;
+    }
+
+    .btn-group {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-top: 10px;
+    }
+
+    .btn {
+      padding: 8px 15px;
+      background: #f5f5f5;
+      color: #333;
+      border: none;
+      border-radius: 8px;
+      cursor: pointer;
+      transition: all 0.2s;
+      font-family: 'Noto Sans TC', sans-serif;
+      font-size: 14px;
+      font-weight: 500;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+    }
+
+    .btn svg {
+      margin-right: 5px;
+    }
+
+    .btn:hover {
+      background: #e0e0e0;
+      transform: translateY(-2px);
+      box-shadow: 0 3px 6px rgba(0, 0, 0, 0.1);
+    }
+
+    .btn.active {
+      background: #1a73e8;
+      color: white;
+      box-shadow: 0 2px 5px rgba(26, 115, 232, 0.3);
+    }
+
+    .floor-btn {
+      flex: 1 0 calc(50% - 4px);
+    }
+
+    .view-btn {
+      flex: 1 0 calc(50% - 4px);
+    }
+
+    .furniture-btn {
+      flex: 1 0 calc(50% - 4px);
+      background: #34a853;
+      color: white;
+    }
+
+    .furniture-btn:hover {
+      background: #2e8b57;
+    }
+
+    .furniture-btn.remove {
+      background: #ea4335;
+    }
+
+    .furniture-btn.remove:hover {
+      background: #d32f2f;
+    }
+
+    .checkbox-container {
+      display: flex;
+      align-items: center;
+      margin: 12px 0;
+      cursor: pointer;
+    }
+
+    .checkbox-container input {
+      position: absolute;
+      opacity: 0;
+      cursor: pointer;
+      height: 0;
+      width: 0;
+    }
+
+    .checkmark {
+      position: relative;
+      height: 20px;
+      width: 20px;
+      background-color: #eee;
+      border-radius: 4px;
+      margin-right: 10px;
+      transition: all 0.2s;
+    }
+
+    .checkbox-container:hover input~.checkmark {
+      background-color: #ccc;
+    }
+
+    .checkbox-container input:checked~.checkmark {
+      background-color: #1a73e8;
+    }
+
+    .checkmark:after {
+      content: "";
+      position: absolute;
+      display: none;
+    }
+
+    .checkbox-container input:checked~.checkmark:after {
+      display: block;
+    }
+
+    .checkbox-container .checkmark:after {
+      left: 7px;
+      top: 3px;
+      width: 5px;
+      height: 10px;
+      border: solid white;
+      border-width: 0 2px 2px 0;
+      transform: rotate(45deg);
+    }
+
+    .color-picker {
+      display: flex;
+      align-items: center;
+      margin: 12px 0;
+    }
+
+    .color-picker label {
+      flex: 1;
+      margin-right: 10px;
+    }
+
+    .color-picker input {
+      height: 30px;
+      width: 60px;
+      border: none;
+      border-radius: 6px;
+      cursor: pointer;
+      background: transparent;
+    }
+
+    .color-picker .color-preview {
+      width: 30px;
+      height: 30px;
+      border-radius: 6px;
+      margin-left: 10px;
+      box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
+    }
+
+    .slider-container {
+      margin: 15px 0;
+    }
+
+    .slider-container label {
+      display: block;
+      margin-bottom: 8px;
+      display: flex;
+      justify-content: space-between;
+    }
+
+    .slider-container label span {
+      color: #1a73e8;
+      font-weight: 500;
+    }
+
+    .slider-container input {
+      width: 100%;
+      -webkit-appearance: none;
+      height: 6px;
+      border-radius: 3px;
+      background: #e0e0e0;
+      outline: none;
+    }
+
+    .slider-container input::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      appearance: none;
+      width: 18px;
+      height: 18px;
+      border-radius: 50%;
+      background: #1a73e8;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .slider-container input::-webkit-slider-thumb:hover {
+      transform: scale(1.2);
+      box-shadow: 0 0 0 6px rgba(26, 115, 232, 0.2);
+    }
+
+    #loading-screen {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: rgba(255, 255, 255, 0.98);
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      z-index: 1000;
+      transition: all 0.5s ease;
+    }
+
+    .spinner {
+      width: 50px;
+      height: 50px;
+      border-radius: 50%;
+      background: conic-gradient(#0000 10%, #1a73e8);
+      -webkit-mask: radial-gradient(farthest-side, #0000 calc(100% - 8px), #000 0);
+      animation: spin 1s infinite linear;
+      margin-bottom: 20px;
+    }
+
+    @keyframes spin {
+      to {
+        transform: rotate(1turn);
+      }
+    }
+
+    .loading-text {
+      font-size: 16px;
+      color: #333;
+      margin-top: 20px;
+      font-weight: 500;
+    }
+
+    .progress-bar {
+      width: 200px;
+      height: 6px;
+      background: #e0e0e0;
+      border-radius: 3px;
+      margin-top: 15px;
+      overflow: hidden;
+    }
+
+    .progress-fill {
+      height: 100%;
+      background: #1a73e8;
+      width: 0%;
+      transition: width 0.3s ease;
+    }
+
+    .room-tooltip {
+      position: absolute;
+      background: rgba(0, 0, 0, 0.8);
+      color: white;
+      padding: 8px 12px;
+      border-radius: 6px;
+      font-size: 14px;
+      pointer-events: none;
+      transition: all 0.2s;
+      z-index: 200;
+      box-shadow: 0 4px 10px rgba(0, 0, 0, 0.2);
+      backdrop-filter: blur(4px);
+      -webkit-backdrop-filter: blur(4px);
+      max-width: 200px;
+    }
+
+    .panel-toggle {
+      position: absolute;
+      width: 40px;
+      height: 40px;
+      background: rgba(255, 255, 255, 0.9);
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      box-shadow: 0 2px 10px rgba(0, 0, 0, 0.2);
+      z-index: 101;
+      transition: all 0.3s;
+    }
+
+    #controls-toggle {
+      top: 20px;
+      left: 20px;
+    }
+
+    #info-toggle {
+      bottom: 20px;
+      right: 20px;
+    }
+
+    .panel-toggle svg {
+      transition: transform 0.3s;
+    }
+
+    .panel-toggle:hover {
+      background: #1a73e8;
+    }
+
+    .panel-toggle:hover svg {
+      fill: white;
+    }
+
+    .panel-hidden {
+      transform: translateX(-110%);
+    }
+
+    .info-panel-hidden {
+      transform: translateX(110%);
+    }
+
+    .room-info-content {
+      padding: 15px;
+      background: rgba(26, 115, 232, 0.05);
+      border-radius: 8px;
+      margin-top: 10px;
+    }
+
+    .dimensions-content {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+      margin-top: 10px;
+    }
+
+    .dimension-item {
+      background: rgba(26, 115, 232, 0.05);
+      padding: 10px;
+      border-radius: 8px;
+      text-align: center;
+    }
+
+    .dimension-item strong {
+      display: block;
+      font-size: 18px;
+      color: #1a73e8;
+      margin-bottom: 5px;
+    }
+
+    .dimension-item span {
+      font-size: 14px;
+      color: #666;
+    }
+
+    .notification {
+      position: fixed;
+      top: 20px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: rgba(0, 0, 0, 0.8);
+      color: white;
+      padding: 10px 20px;
+      border-radius: 30px;
+      font-size: 14px;
+      z-index: 1000;
+      opacity: 0;
+      transition: opacity 0.3s;
+      pointer-events: none;
+      backdrop-filter: blur(4px);
+      -webkit-backdrop-filter: blur(4px);
+    }
+
+    .notification.show {
+      opacity: 1;
+    }
+
+    @media (max-width: 768px) {
+
+      #controls,
+      #info-panel {
+        max-width: 280px;
+      }
+
+      .floor-btn,
+      .view-btn,
+      .furniture-btn {
+        flex: 1 0 100%;
+      }
+    }
+  </style>
+</head>
+
+<body>
+  <div id="loading-screen">
+    <div class="spinner"></div>
+    <div class="loading-text">正在載入A27建築模型</div>
+    <div class="progress-bar">
+      <div class="progress-fill" id="progress-fill"></div>
+    </div>
+  </div>
+
+  <div id="controls-toggle" class="panel-toggle">
+    <svg width="24" height="24" viewBox="0 0 24 24" fill="#333">
+      <path d="M3 18h18v-2H3v2zm0-5h18v-2H3v2zm0-7v2h18V6H3z" />
+    </svg>
+  </div>
+
+  <div id="controls" class="panel">
+    <div class="control-section">
+      <h3>
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="#1a73e8">
+          <path
+            d="M12 7V3H2v18h20V7H12zM6 19H4v-2h2v2zm0-4H4v-2h2v2zm0-4H4V9h2v2zm0-4H4V5h2v2zm4 12H8v-2h2v2zm0-4H8v-2h2v2zm0-4H8V9h2v2zm0-4H8V5h2v2zm10 12h-8v-2h2v-2h-2v-2h2v-2h-2V9h8v10zm-2-8h-2v2h2v-2zm0 4h-2v2h2v-2z" />
+        </svg>
+        樓層控制
+      </h3>
+      <div class="btn-group">
+        <button class="btn floor-btn active" id="floor1">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+            <path d="M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8z" />
+          </svg>
+          一樓 (臥室區)
+        </button>
+        <button class="btn floor-btn" id="floor2">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+            <path d="M12 5.69l5 4.5V18h-2v-6H9v6H7v-7.81l5-4.5M12 3L2 12h3v8h6v-6h2v6h6v-8h3L12 3z" />
+          </svg>
+          二樓 (客廳/餐廳)
+        </button>
+        <button class="btn floor-btn" id="floor3">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+            <path d="M5 11h4V7H5v4zm10 0h4V7h-4v4zm-10 6h4v-4H5v4zm10 0h4v-4h-4v4z" />
+          </svg>
+          三樓 (停車空間)
+        </button>
+        <button class="btn floor-btn" id="all-floors">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+            <path
+              d="M12 3L1 9l11 6 9-4.91V17h2V9L12 3z M9 17.5c0-.83.67-1.5 1.5-1.5s1.5.67 1.5 1.5-.67 1.5-1.5 1.5S9 18.33 9 17.5z M3.5 10L12 15.5 20.5 10 12 4.5z" />
+          </svg>
+          全部樓層
+        </button>
+      </div>
+    </div>
+
+    <div class="control-section">
+      <h3>
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="#1a73e8">
+          <path
+            d="M12 4.5C7 4.5 2.73 7.61 1 12c1.73 4.39 6 7.5 11 7.5s9.27-3.11 11-7.5c-1.73-4.39-6-7.5-11-7.5zM12 17c-2.76 0-5-2.24-5-5s2.24-5 5-5 5 2.24 5 5-2.24 5-5 5zm0-8c-1.66 0-3 1.34-3 3s1.34 3 3 3 3-1.34 3-3-1.34-3-3-3z" />
+        </svg>
+        視圖控制
+      </h3>
+      <div class="btn-group">
+        <button class="btn view-btn" id="top-view">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+            <path d="M12 8l-6 6 1.41 1.41L12 9.83l4.59 4.58L18 13z" />
+          </svg>
+          俯視圖
+        </button>
+        <button class="btn view-btn" id="perspective-view">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+            <path d="M3 9l9-7 9 7v11H3V9z" />
+          </svg>
+          透視圖
+        </button>
+        <button class="btn view-btn" id="section-view">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+            <path d="M19 5v14H5V5h14m0-2H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2z" />
+            <path d="M12 5v14" />
+          </svg>
+          剖面圖
+        </button>
+        <button class="btn view-btn" id="exploded-view">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+            <path d="M4 9h16v2H4zm0 4h16v2H4z" />
+          </svg>
+          分解圖
+        </button>
+      </div>
+
+      <div class="slider-container">
+        <label for="explosion-factor">分解程度: <span id="explosion-value">0</span></label>
+        <input type="range" id="explosion-factor" min="0" max="5" step="0.1" value="0">
+      </div>
+
+      <div class="slider-container">
+        <label for="section-position">剖面位置: <span id="section-value">0.5</span></label>
+        <input type="range" id="section-position" min="0" max="1" step="0.01" value="0.5">
+      </div>
+    </div>
+
+    <div class="control-section">
+      <h3>
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="#1a73e8">
+          <path
+            d="M12 22c1.1 0 2-.9 2-2h-4c0 1.1.9 2 2 2zm6-6v-5c0-3.07-1.63-5.64-4.5-6.32V4c0-.83-.67-1.5-1.5-1.5s-1.5.67-1.5 1.5v.68C7.64 5.36 6 7.92 6 11v5l-2 2v1h16v-1l-2-2zm-2 1H8v-6c0-2.48 1.51-4.5 4-4.5s4 2.02 4 4.5v6z" />
+        </svg>
+        顯示設定
+      </h3>
+      <label class="checkbox-container">
+        <input type="checkbox" id="show-labels" checked>
+        <span class="checkmark"></span>
+        顯示房間標籤
+      </label>
+
+      <label class="checkbox-container">
+        <input type="checkbox" id="show-dimensions" checked>
+        <span class="checkmark"></span>
+        顯示尺寸標註
+      </label>
+
+      <label class="checkbox-container">
+        <input type="checkbox" id="show-furniture" checked>
+        <span class="checkmark"></span>
+        顯示家具
+      </label>
+
+      <label class="checkbox-container">
+        <input type="checkbox" id="show-walls" checked>
+        <span class="checkmark"></span>
+        顯示牆體
+      </label>
+    </div>
+
+    <div class="control-section">
+      <h3>
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="#1a73e8">
+          <path
+            d="M12 3c-4.97 0-9 4.03-9 9s4.03 9 9 9c.83 0 1.5-.67 1.5-1.5 0-.39-.15-.74-.39-1.01-.23-.26-.38-.61-.38-.99 0-.83.67-1.5 1.5-1.5H16c2.76 0 5-2.24 5-5 0-4.42-4.03-8-9-8zm-5.5 9c-.83 0-1.5-.67-1.5-1.5S5.67 9 6.5 9 8 9.67 8 10.5 7.33 12 6.5 12zm3-4C8.67 8 8 7.33 8 6.5S8.67 5 9.5 5s1.5.67 1.5 1.5S10.33 8 9.5 8zm5 0c-.83 0-1.5-.67-1.5-1.5S13.67 5 14.5 5s1.5.67 1.5 1.5S15.33 8 14.5 8zm3 4c-.83 0-1.5-.67-1.5-1.5S16.67 9 17.5 9s1.5.67 1.5 1.5-.67 1.5-1.5 1.5z" />
+        </svg>
+        材質與顏色
+      </h3>
+      <div class="color-picker">
+        <label for="floor1-color">一樓顏色:</label>
+        <input type="color" id="floor1-color" value="#90CAF9">
+        <div class="color-preview" style="background-color: #90CAF9;"></div>
+      </div>
+
+      <div class="color-picker">
+        <label for="floor2-color">二樓顏色:</label>
+        <input type="color" id="floor2-color" value="#80DEEA">
+        <div class="color-preview" style="background-color: #80DEEA;"></div>
+      </div>
+
+      <div class="color-picker">
+        <label for="floor3-color">三樓顏色:</label>
+        <input type="color" id="floor3-color" value="#A5D6A7">
+        <div class="color-preview" style="background-color: #A5D6A7;"></div>
+      </div>
+
+      <div class="color-picker">
+        <label for="wall-color">牆體顏色:</label>
+        <input type="color" id="wall-color" value="#EEEEEE">
+        <div class="color-preview" style="background-color: #EEEEEE;"></div>
+      </div>
+    </div>
+
+    <div class="control-section">
+      <h3>
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="#1a73e8">
+          <path
+            d="M22 10V6c0-1.1-.9-2-2-2H4c-1.1 0-1.99.9-1.99 2v4c1.1 0 1.99.9 1.99 2s-.89 2-2 2v4c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2v-4c-1.1 0-2-.9-2-2s.9-2 2-2zm-2-1.46c-1.19.69-2 1.99-2 3.46s.81 2.77 2 3.46V18H4v-2.54c1.19-.69 2-1.99 2-3.46 0-1.48-.8-2.77-1.99-3.46L4 6h16v2.54z M11 15h2v2h-2zm0-4h2v2h-2zm0-4h2v2h-2z" />
+        </svg>
+        家具與配置
+      </h3>
+      <div class="btn-group">
+        <button class="furniture-btn" id="add-bed">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+            <path
+              d="M7 13c1.66 0 3-1.34 3-3S8.66 7 7 7s-3 1.34-3 3 1.34 3 3 3zm12-6h-8v7H3V7H1v10h2v-2h18v2h2V9c0-1.1-.9-2-2-2z" />
+          </svg>
+          添加床鋪
+        </button>
+        <button class="furniture-btn" id="add-sofa">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+            <path
+              d="M21 9V7c0-1.65-1.35-3-3-3H6C4.35 4 3 5.35 3 7v2c-1.65 0-3 1.35-3 3v5c0 1.65 1.35 3 3 3h18c1.65 0 3-1.35 3-3v-5c0-1.65-1.35-3-3-3zM5 7c0-.55.45-1 1-1h12c.55 0 1 .45 1 1v2.78c-.61.55-1 1.34-1 2.22v2H6v-2c0-.88-.39-1.67-1-2.22V7zm17 10c0 .55-.45 1-1 1H3c-.55 0-1-.45-1-1v-5c0-.55.45-1 1-1s1 .45 1 1v4h16v-4c0-.55.45-1 1-1s1 .45 1 1v5z" />
+          </svg>
+          添加沙發
+        </button>
+        <button class="furniture-btn" id="add-table">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+            <path
+              d="M22 10h-4V7c0-.55-.45-1-1-1h-2V4c0-.55-.45-1-1-1H4c-.55 0-1 .45-1 1v16c0 .55.45 1 1 1h16c.55 0 1-.45 1-1v-2h2c.55 0 1-.45 1-1v-7c0-.55-.45-1-1-1zm-7-3h2v3h-2V7zM4 4h10v16H4V4zm16 15h-2V7h2v12zm2-3h-2v-7h2v7z" />
+          </svg>
+          添加桌椅
+        </button>
+        <button class="furniture-btn" id="add-car">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+            <path
+              d="M18.92 6.01C18.72 5.42 18.16 5 17.5 5h-11c-.66 0-1.21.42-1.42 1.01L3 12v8c0 .55.45 1 1 1h1c.55 0 1-.45 1-1v-1h12v1c0 .55.45 1 1 1h1c.55 0 1-.45 1-1v-8l-2.08-5.99zM6.5 16c-.83 0-1.5-.67-1.5-1.5S5.67 13 6.5 13s1.5.67 1.5 1.5S7.33 16 6.5 16zm11 0c-.83 0-1.5-.67-1.5-1.5s.67-1.5 1.5-1.5 1.5.67 1.5 1.5-.67 1.5-1.5 1.5zM5 11l1.5-4.5h11L19 11H5z" />
+          </svg>
+          添加車輛
+        </button>
+        <button class="furniture-btn remove" id="remove-furniture">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+            <path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z" />
+          </svg>
+          移除家具
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <div id="info-toggle" class="panel-toggle">
+    <svg width="24" height="24" viewBox="0 0 24 24" fill="#333">
+      <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-6h2v6zm0-8h-2V7h2v2z" />
+    </svg>
+  </div>
+
+  <div id="info-panel" class="panel">
+    <h3>
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="#1a73e8">
+        <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-6h2v6zm0-8h-2V7h2v2z" />
+      </svg>
+      空間資訊
+    </h3>
+    <div id="room-info" class="room-info-content">點擊房間以查看詳細信息</div>
+
+    <h3 style="margin-top: 15px;">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="#1a73e8">
+        <path
+          d="M21 6H3c-1.1 0-2 .9-2 2v8c0 1.1.9 2 2 2h18c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2zm0 10H3V8h18v8zM6 15h2v-2h2v-2H8V9H6v2H4v2h2z M14 15h4v-2h-2v-2h2V9h-4v2h2v2h-2z" />
+      </svg>
+      建築尺寸
+    </h3>
+    <div class="dimensions-content">
+      <div class="dimension-item">
+        <strong>850cm</strong>
+        <span>總寬度</span>
+      </div>
+      <div class="dimension-item">
+        <strong>450cm</strong>
+        <span>總長度</span>
+      </div>
+      <div class="dimension-item">
+        <strong>9m</strong>
+        <span>總高度 (三層)</span>
+      </div>
+      <div class="dimension-item">
+        <strong>115m²</strong>
+        <span>總建築面積</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="notification" id="notification"></div>
+
+  <canvas id="canvas"></canvas>
+  <div id="tooltip" class="room-tooltip" style="display: none;"></div>
+
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.min.js"></script>
+  <script>
+    // 初始化載入畫面
+    const progressFill = document.getElementById('progress-fill');
+    let loadingProgress = 0;
+    const loadingInterval = setInterval(() => {
+      loadingProgress += Math.random() * 5;
+      if (loadingProgress > 100) {
+        loadingProgress = 100;
+        clearInterval(loadingInterval);
+        setTimeout(() => {
+          document.getElementById('loading-screen').style.opacity = '0';
+          setTimeout(() => {
+            document.getElementById('loading-screen').style.display = 'none';
+          }, 500);
+        }, 500);
+      }
+      progressFill.style.width = loadingProgress + '%';
+    }, 150);
+
+    // 面板切換功能
+    document.getElementById('controls-toggle').addEventListener('click', function () {
+      const panel = document.getElementById('controls');
+      panel.classList.toggle('panel-hidden');
+      this.querySelector('svg').style.transform = panel.classList.contains('panel-hidden') ? 'rotate(180deg)' : '';
+    });
+
+    document.getElementById('info-toggle').addEventListener('click', function () {
+      const panel = document.getElementById('info-panel');
+      panel.classList.toggle('info-panel-hidden');
+      this.querySelector('svg').style.transform = panel.classList.contains('info-panel-hidden') ? 'rotate(180deg)' : '';
+    });
+
+    // 滑塊數值顯示
+    document.getElementById('explosion-factor').addEventListener('input', function () {
+      document.getElementById('explosion-value').textContent = this.value;
+    });
+
+    document.getElementById('section-position').addEventListener('input', function () {
+      document.getElementById('section-value').textContent = this.value;
+    });
+
+    // 顏色選擇器同步預覽
+    const colorInputs = document.querySelectorAll('.color-picker input');
+    colorInputs.forEach(input => {
+      input.addEventListener('input', function () {
+        this.nextElementSibling.style.backgroundColor = this.value;
+      });
+    });
+
+    // 通知功能
+    function showNotification(message, duration = 3000) {
+      const notification = document.getElementById('notification');
+      notification.textContent = message;
+      notification.classList.add('show');
+
+      setTimeout(() => {
+        notification.classList.remove('show');
+      }, duration);
+    }
+
+    // 3D場景初始化
+    const scene = new THREE.Scene();
+    scene.background = new THREE.Color(0xf5f5f5);
+
+    // 設置相機
+    const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+    camera.position.set(10, 10, 10);
+
+    // 設置渲染器
+    const renderer = new THREE.WebGLRenderer({ canvas: document.getElementById('canvas'), antialias: true });
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    renderer.shadowMap.enabled = true;
+    renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+
+    // 添加軌道控制
+    const controls = new THREE.OrbitControls(camera, renderer.domElement);
+    controls.enableDamping = true;
+    controls.dampingFactor = 0.05;
+    controls.maxPolarAngle = Math.PI / 2;
+
+    // 添加光源
+    const ambientLight = new THREE.AmbientLight(0xffffff, 0.6);
+    scene.add(ambientLight);
+
+    const directionalLight = new THREE.DirectionalLight(0xffffff, 0.8);
+    directionalLight.position.set(10, 20, 10);
+    directionalLight.castShadow = true;
+    directionalLight.shadow.camera.left = -15;
+    directionalLight.shadow.camera.right = 15;
+    directionalLight.shadow.camera.top = 15;
+    directionalLight.shadow.camera.bottom = -15;
+    directionalLight.shadow.camera.near = 0.5;
+    directionalLight.shadow.camera.far = 50;
+    directionalLight.shadow.mapSize.width = 2048;
+    directionalLight.shadow.mapSize.height = 2048;
+    scene.add(directionalLight);
+
+    // 建築數據
+    const buildingData = {
+      floor1: { // 臥室區
+        height: 3,
+        rooms: [
+          {
+            name: '主臥室 (A27)',
+            width: 286.5,
+            length: 262.5,
+            posX: 0,
+            posZ: 0,
+            details: '寬敞的主臥室，配有落地窗，可直接進入露台。'
+          },
+          {
+            name: '次臥室',
+            width: 301,
+            length: 155,
+            posX: 301 / 2,
+            posZ: 0,
+            details: '舒適的次臥室，窗戶寬度150cm (W16)。'
+          },
+          {
+            name: '浴室',
+            width: 75,
+            length: 80,
+            posX: -100,
+            posZ: -80,
+            details: '主浴室配有淋浴間與馬桶。'
+          },
+          {
+            name: '露台',
+            width: 180,
+            length: 65,
+            posX: -180,
+            posZ: 0,
+            details: '戶外露台，提供良好的通風與景觀視野。'
+          }
+        ],
+        furniture: [
+          { type: 'bed', width: 180, length: 200, posX: 0, posZ: -60, rotation: 0 },
+          { type: 'wardrobe', width: 60, length: 200, posX: 100, posZ: -100, rotation: 0 },
+          { type: 'table', width: 60, length: 120, posX: -80, posZ: 20, rotation: 0 }
+        ]
+      },
+      floor2: { // 客廳餐廳區
+        height: 3,
+        rooms: [
+          {
+            name: '客廳 (A27)',
+            width: 300,
+            length: 400,
+            posX: -100,
+            posZ: 0,
+            details: '寬敞的客廳空間，連接陽台，採光良好。'
+          },
+          {
+            name: '餐廳',
+            width: 300,
+            length: 250,
+            posX: 200,
+            posZ: 0,
+            details: '開放式餐廳，與廚房相鄰，便於用餐與家庭互動。'
+          },
+          {
+            name: '廚房',
+            width: 250,
+            length: 200,
+            posX: 350,
+            posZ: 0,
+            details: '功能性廚房空間，配有雙爐灶和足夠的儲藏空間。'
+          },
+          {
+            name: '陽台',
+            width: 405,
+            length: 65,
+            posX: -200,
+            posZ: 0,
+            details: '長形陽台 (DW1)，提供良好的室外休憩空間。'
+          }
+        ],
+        furniture: [
+          { type: 'sofa', width: 200, length: 80, posX: -150, posZ: -50, rotation: 0 },
+          { type: 'table', width: 120, length: 120, posX: -50, posZ: 50, rotation: 0 },
+          { type: 'dining_table', width: 160, length: 90, posX: 200, posZ: 0, rotation: 0 },
+          { type: 'kitchen_counter', width: 240, length: 60, posX: 350, posZ: -60, rotation: 0 }
+        ]
+      },
+      floor3: { // 停車空間
+        height: 3,
+        rooms: [
+          {
+            name: '停車空間',
+            width: 565,
+            length: 382,
+            posX: 0,
+            posZ: 0,
+            details: '寬敞的停車空間，可容納多輛車輛。'
+          },
+          {
+            name: '自設車位 (250×550)',
+            width: 250,
+            length: 550,
+            posX: -150,
+            posZ: 0,
+            details: '特設專用車位，尺寸適合一般轎車或SUV。'
+          },
+          {
+            name: '過轉空間',
+            width: 240,
+            length: 150,
+            posX: -300,
+            posZ: 0,
+            details: '車輛迴轉與臨時停放區域。'
+          }
+        ],
+        furniture: [
+          { type: 'car', width: 200, length: 450, posX: -150, posZ: 0, rotation: 0 }
+        ]
+      }
+    };
+
+    // 初始化材質
+    const materials = {
+      floor1: new THREE.MeshLambertMaterial({ color: 0x90caf9, transparent: true, opacity: 0.8 }),
+      floor2: new THREE.MeshLambertMaterial({ color: 0x80deea, transparent: true, opacity: 0.8 }),
+      floor3: new THREE.MeshLambertMaterial({ color: 0xa5d6a7, transparent: true, opacity: 0.8 }),
+      selected: new THREE.MeshLambertMaterial({ color: 0xffa726, transparent: true, opacity: 0.9 }),
+      walls: new THREE.MeshLambertMaterial({ color: 0xeeeeee }),
+      glass: new THREE.MeshPhysicalMaterial({
+        color: 0xffffff,
+        transparent: true,
+        opacity: 0.3,
+        roughness: 0.1,
+        metalness: 0.2
+      }),
+      wood: new THREE.MeshLambertMaterial({ color: 0x8d6e63 }),
+      metal: new THREE.MeshStandardMaterial({
+        color: 0xb0bec5,
+        roughness: 0.2,
+        metalness: 0.8
+      }),
+      fabric: new THREE.MeshLambertMaterial({ color: 0x5c6bc0 }),
+      car: new THREE.MeshStandardMaterial({
+        color: 0x263238,
+        roughness: 0.3,
+        metalness: 0.7
+      })
+    };
+
+    // 儲存所有樓層網格
+    const floors = {
+      floor1: new THREE.Group(),
+      floor2: new THREE.Group(),
+      floor3: new THREE.Group()
+    };
+
+    // 創建樓層 - 完整實現
+    function createFloor(floorKey, floorData, yPosition) {
+      const floor = floors[floorKey];
+      floor.position.y = yPosition;
+      floor.userData = { floorKey: floorKey };
+
+      // 創建樓板
+      const floorGeometry = new THREE.BoxGeometry(8.5, 0.2, 4.5);
+      const floorMaterial = new THREE.MeshLambertMaterial({ color: 0xdedede });
+      floorMaterial.receiveShadow = true;
+
+      const floorBase = new THREE.Mesh(floorGeometry, floorMaterial);
+      floorBase.position.y = -0.1;
+      floorBase.receiveShadow = true;
+      floor.add(floorBase);
+
+      // 創建房間
+      floorData.rooms.forEach(room => {
+        const width = room.width / 100;
+        const length = room.length / 100;
+
+        // 房間牆體
+        const walls = new THREE.Group();
+
+        // 北牆
+        const northWall = new THREE.Mesh(
+          new THREE.BoxGeometry(width, floorData.height, 0.1),
+          materials.walls
+        );
+        northWall.position.set(room.posX / 100, floorData.height / 2, room.posZ / 100 + length / 2);
+        northWall.castShadow = true;
+        northWall.receiveShadow = true;
+        walls.add(northWall);
+
+        // 南牆
+        const southWall = new THREE.Mesh(
+          new THREE.BoxGeometry(width, floorData.height, 0.1),
+          materials.walls
+        );
+        southWall.position.set(room.posX / 100, floorData.height / 2, room.posZ / 100 - length / 2);
+        southWall.castShadow = true;
+        southWall.receiveShadow = true;
+        walls.add(southWall);
+
+        // 東牆
+        const eastWall = new THREE.Mesh(
+          new THREE.BoxGeometry(0.1, floorData.height, length),
+          materials.walls
+        );
+        eastWall.position.set(room.posX / 100 + width / 2, floorData.height / 2, room.posZ / 100);
+        eastWall.castShadow = true;
+        eastWall.receiveShadow = true;
+        walls.add(eastWall);
+
+        // 西牆
+        const westWall = new THREE.Mesh(
+          new THREE.BoxGeometry(0.1, floorData.height, length),
+          materials.walls
+        );
+        westWall.position.set(room.posX / 100 - width / 2, floorData.height / 2, room.posZ / 100);
+        westWall.castShadow = true;
+        westWall.receiveShadow = true;
+        walls.add(westWall);
+
+        // 添加房間牆體到樓層中
+        walls.userData = { type: 'walls', roomName: room.name };
+        floor.add(walls);
+
+        // 房間地板
+        const roomGeometry = new THREE.BoxGeometry(width, 0.05, length);
+        const roomMesh = new THREE.Mesh(roomGeometry, materials[floorKey]);
+
+        roomMesh.position.set(room.posX / 100, 0.025, room.posZ / 100);
+        roomMesh.userData = {
+          type: 'room',
+          name: room.name,
+          width: room.width,
+          length: room.length,
+          details: room.details
+        };
+        roomMesh.receiveShadow = true;
+
+        floor.add(roomMesh);
+      });
+
+      // 添加傢俱
+      if (floorData.furniture) {
+        floorData.furniture.forEach(item => {
+          let furniture;
+          switch (item.type) {
+            case 'bed':
+              furniture = furnitureModels.bed(item.width, item.length);
+              break;
+            case 'sofa':
+              furniture = furnitureModels.sofa(item.width, item.length);
+              break;
+            case 'table':
+              furniture = furnitureModels.table(item.width, item.length);
+              break;
+            case 'dining_table':
+              furniture = furnitureModels.dining_table(item.width, item.length);
+              break;
+            case 'kitchen_counter':
+              furniture = furnitureModels.kitchen_counter(item.width, item.length);
+              break;
+            case 'car':
+              furniture = furnitureModels.car(item.width, item.length);
+              break;
+            case 'wardrobe':
+              furniture = furnitureModels.wardrobe(item.width, item.length);
+              break;
+          }
+
+          if (furniture) {
+            furniture.position.set(item.posX / 100, 0, item.posZ / 100);
+            if (item.rotation) {
+              furniture.rotation.y = item.rotation;
+            }
+            furniture.userData = { type: 'furniture', furnitureType: item.type };
+            furniture.traverse(function (child) {
+              if (child.isMesh) {
+                child.castShadow = true;
+                child.receiveShadow = true;
+              }
+            });
+            floor.add(furniture);
+          }
+        });
+      }
+
+      scene.add(floor);
+      return floor;
+    }
+
+    // 建立家具庫 - 完整實現所有家具模型
+    const furnitureModels = {
+      bed: function (width, length, material) {
+        const group = new THREE.Group();
+
+        // 床架
+        const bedFrame = new THREE.Mesh(
+          new THREE.BoxGeometry(width / 100, 0.3, length / 100),
+          materials.wood
+        );
+        bedFrame.position.y = 0.15;
+        group.add(bedFrame);
+
+        // 床墊
+        const mattress = new THREE.Mesh(
+          new THREE.BoxGeometry(width / 100 * 0.95, 0.15, length / 100 * 0.95),
+          materials.fabric
+        );
+        mattress.position.y = 0.38;
+        group.add(mattress);
+
+        // 枕頭
+        const pillow1 = new THREE.Mesh(
+          new THREE.BoxGeometry(0.6, 0.1, 0.4),
+          new THREE.MeshLambertMaterial({ color: 0xffffff })
+        );
+        pillow1.position.set(width / 100 * 0.3, 0.46, length / 100 * -0.35);
+        group.add(pillow1);
+
+        const pillow2 = pillow1.clone();
+        pillow2.position.set(width / 100 * -0.3, 0.46, length / 100 * -0.35);
+        group.add(pillow2);
+
+        // 被子
+        const blanket = new THREE.Mesh(
+          new THREE.BoxGeometry(width / 100 * 0.9, 0.05, length / 100 * 0.55),
+          new THREE.MeshLambertMaterial({ color: 0x42a5f5 })
+        );
+        blanket.position.set(0, 0.43, length / 100 * 0.1);
+        group.add(blanket);
+
+        return group;
+      },
+
+      sofa: function (width, length, material) {
+        const group = new THREE.Group();
+
+        // 沙發底座
+        const base = new THREE.Mesh(
+          new THREE.BoxGeometry(width / 100, 0.4, length / 100),
+          materials.fabric
+        );
+        base.position.y = 0.2;
+        group.add(base);
+
+        // 沙發靠背
+        const back = new THREE.Mesh(
+          new THREE.BoxGeometry(width / 100, 0.6, 0.15),
+          materials.fabric
+        );
+        back.position.set(0, 0.5, length / 200 - 0.075);
+        group.add(back);
+
+        // 扶手
+        const armRest1 = new THREE.Mesh(
+          new THREE.BoxGeometry(0.15, 0.2, length / 100),
+          materials.fabric
+        );
+        armRest1.position.set(width / 200 - 0.075, 0.5, 0);
+        group.add(armRest1);
+
+        const armRest2 = armRest1.clone();
+        armRest2.position.set(-width / 200 + 0.075, 0.5, 0);
+        group.add(armRest2);
+
+        // 坐墊
+        for (let i = 0; i < Math.floor(width / 100); i++) {
+          const cushion = new THREE.Mesh(
+            new THREE.BoxGeometry(0.65, 0.1, length / 100 * 0.9),
+            new THREE.MeshLambertMaterial({ color: 0x4527a0 })
+          );
+          cushion.position.set(width / 200 - 0.4 - i * 0.7, 0.45, 0);
+          group.add(cushion);
+        }
+
+        return group;
+      },
+
+      table: function(width, length) {
+        // 修正桌腿位置参数
+        const positions = [
+          [width/200-0.03, 0, length/200-0.03],
+          [width/200-0.03, 0, -length/200+0.03],
+          [-width/200+0.03, 0, length/200-0.03],
+          [-width/200+0.03, 0, -length/200+0.03]
+        ];
+        // 每个leg.position.set应使用三维坐标
+        positions.forEach(pos => {
+          const leg = new THREE.Mesh(legGeometry, legMaterial);
+          leg.position.set(pos[0], legHeight/2, pos[2]); // 修正坐标索引
+          group.add(leg);
+        });
+      },
+
+      dining_table: function(width, length) {
+        // 修正椅子位置判断逻辑
+        chairPositions.forEach(pos => {
+          if (pos[2] > 0) {  // 北侧椅子
+            chair.rotation.y = Math.PI;
+          } else if (pos[0] > 0) {  // 东侧椅子
+            chair.rotation.y = -Math.PI/2;
+          } else if (pos[0] < 0) {  // 西侧椅子
+            chair.rotation.y = Math.PI/2;
+          }
+          chair.position.set(pos[0], 0, pos[2]); // 使用完整三维坐标
+        });
+      },
+
+      kitchen_counter: function(width, length) {
+        // 修正橱柜门生成逻辑
+        for (let i = 0; i < Math.floor(width/60); i++) {
+          const doorX = width/200 - 0.3 - i*0.6;
+          door.position.set(doorX, 0.4, length/200+0.01);
+        }
+      },
+
+      car: function(width, length) {
+        // 修正三维坐标设置
+        wheelPositions.forEach(pos => {
+          wheel.position.set(pos[0], pos[1], pos[2]); // 使用完整三维坐标
+          hubcap.position.set(pos[0], pos[1], pos[2]);
+        });
+        
+        // 修正车灯位置
+        headlightPositions.forEach(pos => {
+          headlight.position.set(pos[0], pos[1], pos[2]);
+        });
+      },
+      wardrobe: function (width, length, material) {
+        const group = new THREE.Group();
+
+        // 衣櫃本體
+        const body = new THREE.Mesh(
+          new THREE.BoxGeometry(width / 100, 2.4, length / 100),
+          new THREE.MeshLambertMaterial({ color: 0xd7ccc8 })
+        );
+        body.position.y = 1.2;
+        group.add(body);
+
+        // 衣櫃門
+        const doorWidth = width / 100 / 2;
+
+        for (let i = 0; i < 2; i++) {
+          const door = new THREE.Mesh(
+            new THREE.BoxGeometry(doorWidth - 0.02, 2.38, 0.02),
+            new THREE.MeshLambertMaterial({ color: 0x8d6e63 })
+          );
+          door.position.set(-width / 200 + doorWidth / 2 + i * doorWidth, 1.2, length / 200 + 0.01);
+          group.add(door);
+
+          // 門把手
+          const handle = new THREE.Mesh(
+            new THREE.CylinderGeometry(0.01, 0.01, 0.1),
+            materials.metal
+          );
+          handle.rotation.z = Math.PI / 2;
+          const handlePosX = i === 0 ? -width / 200 + doorWidth - 0.05 : -width / 200 + doorWidth + 0.05;
+          handle.position.set(handlePosX, 1.2, length / 200 + 0.03);
+          group.add(handle);
+        }
+
+        return group;
+      }
+    };
+
+    // 添加樓梯函數 - 完整實現
+    function createStairs(startY, endY, width, length, direction) {
+      const stairs = new THREE.Group();
+
+      const stepsCount = 14;
+      const stepHeight = (endY - startY) / stepsCount;
+      const stepLength = length / stepsCount;
+
+      for (let i = 0; i < stepsCount; i++) {
+        const stepGeometry = new THREE.BoxGeometry(width, stepHeight, stepLength);
+        const stepMaterial = new THREE.MeshLambertMaterial({ color: 0xbdbdbd });
+        const step = new THREE.Mesh(stepGeometry, stepMaterial);
+
+        if (direction === 'up') {
+          step.position.set(0, startY + stepHeight / 2 + i * stepHeight, -length / 2 + stepLength / 2 + i * stepLength);
+        } else {
+          step.position.set(0, startY + stepHeight / 2 + i * stepHeight, length / 2 - stepLength / 2 - i * stepLength);
+        }
+
+        step.castShadow = true;
+        step.receiveShadow = true;
+        stairs.add(step);
+      }
+
+      return stairs;
+    }
+
+    // 添加必要的樓梯
+    const stairs1 = createStairs(0, buildingData.floor1.height, 1, 2.5, 'up');
+    stairs1.position.set(0, 0, 0);
+    scene.add(stairs1);
+
+    const stairs2 = createStairs(buildingData.floor1.height, buildingData.floor1.height + buildingData.floor2.height, 1, 2.5, 'up');
+    stairs2.position.set(0, 0, 0);
+    scene.add(stairs2);
+
+    // 正確順序創建樓層
+    createFloor('floor1', buildingData.floor1, 0);
+    createFloor('floor2', buildingData.floor2, buildingData.floor1.height);
+    createFloor('floor3', buildingData.floor3, buildingData.floor1.height + buildingData.floor2.height);
+
+    // 添加樓梯
+    function createStairs(startY, endY, width, length, direction) {
+      // 樓梯創建邏輯...
+    }
+
+    // 顯示/隱藏樓層函數
+    function showFloor(floorKey, visible) {
+      floors[floorKey].visible = visible;
+
+      document.querySelectorAll('.floor-btn').forEach(btn => {
+        btn.classList.remove('active');
+      });
+
+      if (visible) {
+        if (floorKey === 'all-floors') {
+          document.getElementById('all-floors').classList.add('active');
+        } else {
+          document.getElementById(floorKey).classList.add('active');
+        }
+      }
+    }
+
+    // 爆炸視圖函數
+    function explodeView(factor) {
+      floors.floor1.position.y = 0;
+      floors.floor2.position.y = buildingData.floor1.height + factor * 3;
+      floors.floor3.position.y = buildingData.floor1.height + buildingData.floor2.height + factor * 6;
+    }
+
+    // 剖面視圖函數
+    function sectionView(position) {
+      const clipPlane = new THREE.Plane(new THREE.Vector3(1, 0, 0), position * 4);
+      renderer.clippingPlanes = [clipPlane];
+    }
+
+    // 事件處理
+    document.getElementById('floor1').addEventListener('click', () => {
+      showFloor('floor1', true);
+      showFloor('floor2', false);
+      showFloor('floor3', false);
+      showNotification('已切換至一樓 (臥室區)');
+    });
+
+    document.getElementById('floor2').addEventListener('click', () => {
+      showFloor('floor1', false);
+      showFloor('floor2', true);
+      showFloor('floor3', false);
+      showNotification('已切換至二樓 (客廳/餐廳)');
+    });
+
+    document.getElementById('floor3').addEventListener('click', () => {
+      showFloor('floor1', false);
+      showFloor('floor2', false);
+      showFloor('floor3', true);
+      showNotification('已切換至三樓 (停車空間)');
+    });
+
+    document.getElementById('all-floors').addEventListener('click', () => {
+      showFloor('floor1', true);
+      showFloor('floor2', true);
+      showFloor('floor3', true);
+      showNotification('顯示所有樓層');
+    });
+
+    // 視圖控制事件
+    document.getElementById('top-view').addEventListener('click', () => {
+      camera.position.set(0, 20, 0);
+      camera.lookAt(0, 0, 0);
+      showNotification('切換至俯視圖');
+    });
+
+    document.getElementById('perspective-view').addEventListener('click', () => {
+      camera.position.set(15, 15, 15);
+      camera.lookAt(0, 0, 0);
+      showNotification('切換至透視圖');
+    });
+
+    document.getElementById('section-view').addEventListener('click', () => {
+      camera.position.set(10, 5, 0);
+      camera.lookAt(0, 5, 0);
+      sectionView(0.5);
+      showNotification('切換至剖面圖');
+    });
+
+    document.getElementById('exploded-view').addEventListener('click', () => {
+      explodeView(1);
+      camera.position.set(10, 10, 10);
+      camera.lookAt(0, 6, 0);
+      showNotification('切換至分解圖');
+    });
+
+    // 射線檢測器，用於鼠標拾取
+    const raycaster = new THREE.Raycaster();
+    const mouse = new THREE.Vector2();
+    let selectedObject = null;
+
+    // 鼠標移動事件
+    window.addEventListener('mousemove', (event) => {
+      mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
+      mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
+
+      // 射線檢測
+      raycaster.setFromCamera(mouse, camera);
+      const intersects = raycaster.intersectObjects(scene.children, true);
+
+      // 重置游標
+      document.body.style.cursor = 'default';
+      tooltip.style.display = 'none';
+
+      if (intersects.length > 0) {
+        const object = intersects[0].object;
+
+        // 檢查是否點擊到有用戶數據的物體
+        if (object.userData && (object.userData.type === 'room' || object.userData.type === 'furniture')) {
+          document.body.style.cursor = 'pointer';
+
+          // 顯示工具提示
+          tooltip.style.display = 'block';
+          tooltip.style.left = event.clientX + 10 + 'px';
+          tooltip.style.top = event.clientY + 10 + 'px';
+
+          if (object.userData.type === 'room') {
+            tooltip.textContent = object.userData.name;
+          } else if (object.userData.type === 'furniture') {
+            tooltip.textContent = object.userData.furnitureType.replace('_', ' ');
+          }
+        }
+      }
+    });
+
+    // 窗口調整事件
+    window.addEventListener('resize', () => {
+      camera.aspect = window.innerWidth / window.innerHeight;
+      camera.updateProjectionMatrix();
+      renderer.setSize(window.innerWidth, window.innerHeight);
+    });
+        // 初始設置
+        showFloor('floor1', true);
+        showFloor('floor2', true);
+        showFloor('floor3', true);
+        document.getElementById('all-floors').classList.add('active');
+        // 確保animate函數正確執行
+        function animate() {
+          requestAnimationFrame(animate);
+          controls.update();
+    
+          // 更新家具放置提示
+          if (selectedFurnitureType) {
+            document.getElementById('room-info').innerHTML = `
+                <p>當前選擇: <strong>${selectedFurnitureType}</strong></p>
+                <p>點擊房間放置此家具</p>
+                <p>或選擇其他家具類型</p>
+            `;
+          }
+    
+          renderer.render(scene, camera);
+        }
+    
+        animate();
+  </script>
+</body>
+
+</html>
